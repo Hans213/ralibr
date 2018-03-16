@@ -79,6 +79,7 @@ convert_swaption_vols <-
                 cvTenor,
                 cvDiscount,
                 valdate) {
+
                 # Dimensions of the Swaption Vol Cube
                 N <- dim(vols)[1]
                 M <- dim(vols)[2]
@@ -106,7 +107,7 @@ convert_swaption_vols <-
                         parse_date_internal(DateToParse = valdate, DateType = "European")
 
                 # Create a calendar
-                create.calendar("Actual", weekdays = c("saturday", "sunday"))
+                bizdays::create.calendar("Actual", weekdays = c("saturday", "sunday"))
 
                 # We loop over the rows and columns and convert the Vols
                 for (i in 1:N) {
