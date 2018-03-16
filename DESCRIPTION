@@ -1,14 +1,13 @@
 Package: ralibr
-Title: Function library for Risk-Advisory FSI
+Title: Function library
 Version: 0.0.0.9000
 Authors@R: person("Thibaut", "Van Weehaeghe", email = "tvanweehaeghe@deloitte.com", role = c("aut", "cre"))
-Description: Package with functions for valuation of financial instruments
+Description: Useful valuation functions
 Depends: R (>= 3.4.1)
 License: MIT
 Encoding: UTF-8
 LazyData: true
 URL: https://github.com/ThVWh/ralibr
 Imports: 
-    lubridate,
-    dplyr
+    tidyverse,
 RoxygenNote: 6.0.1

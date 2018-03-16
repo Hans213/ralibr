@@ -66,6 +66,8 @@ value_fixed_leg <- function(Cv,
                                     ValDate = ValD,
                                     Output = "Frame") # Output is in Date format !
 
+
+
         # Convert for internal use
         # Dates <- parse_date_internal(Dates)
 
