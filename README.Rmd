@@ -14,10 +14,8 @@ knitr::opts_chunk$set(
 
 # ralibr
 
-<<<<<<< HEAD
 ralibr is a repository with a range of functions
-=======
->>>>>>> jh_yearfrac
+
 
 ## Installation
 

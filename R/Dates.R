@@ -23,43 +23,6 @@ date_to_excel <- function(d1) {
 #'
 #' @importFrom  lubridate parse_date_time
 #'
-<<<<<<< HEAD
-#' @examples yearfrac("2015-01-01","2020-01-01","act360")
-yearfrac <- function(DateBegin,
-                     DateEnd,
-                     DayCountConv = "ACT/360"){
-
-
-        DateBegin <- parse_date_internal(DateToParse = DateBegin)
-        DateEnd <- parse_date_internal(DateToParse = DateEnd)
-
-        # ACT360
-        if(toupper(DayCountConv)=="ACT/360"|toupper(DayCountConv)=="ACT360"){
-                Fracs <- (as.integer(DateEnd)-as.integer(DateBegin))/360
-        }
-        # ACT365
-        else if(toupper(DayCountConv)=="ACT/365"|toupper(DayCountConv)=="ACT365"){
-                Fracs <- (as.integer(DateEnd)-as.integer(DateBegin))/365
-        }
-        # ACTACT
-        else if(toupper(DayCountConv)=="ACT/ACT"|toupper(DayCountConv)=="ACTACT"){
-                # THIS HAS BEEN CORRECTED
-                DateSpan = as.integer(DateEnd) - as.integer(DateBegin)
-                year1 = as.integer(substring(DateBegin, 1, 4))
-                year2 = as.integer(substring(DateEnd, 1, 4))
-                YearSpan = year2 - year1 + 1
-                LeapYear = rep(0, YearSpan)
-                Years = year1:year2
-
-                # Can we test if lubridate::leap_year is equivalent - more efficient
-                for (i in 1:length(LeapYear)) {
-                        if (Years[i] - 4 * floor(Years[i] / 4) == 0)   {
-                                if (Years[i] - 100 * floor(Years[i] / 100) == 0  &&
-                                                Years[i] - 400 * floor(Years[i] / 400) == 1) {
-                                        LeapYear[i] = 0
-                                }
-                                LeapYear[i] = 1
-=======
 parse_date_internal <-
         function(DateToParse, DateType = "European") {
                 # Numerics are reserved for Excel integration and converted to R Dates.
@@ -83,7 +46,6 @@ parse_date_internal <-
                                         ))
                         } else{
                                 stop("Wrong DateType")
->>>>>>> jh_yearfrac
                         }
                 }
 
@@ -1469,3 +1431,4 @@ tenor_to_string <- function(tenor){
         }
         return(Tenor)
 }
+

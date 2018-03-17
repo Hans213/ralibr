@@ -9,10 +9,7 @@ Encoding: UTF-8
 LazyData: true
 URL: https://github.com/ThVWh/ralibr
 Imports: 
-<<<<<<< HEAD
     lubridate,
-    tidyverse
-=======
     tidyverse,
->>>>>>> jh_yearfrac
+    bizdays
 RoxygenNote: 6.0.1
