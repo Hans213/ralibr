@@ -55,10 +55,7 @@ calibrate_hull_white_swaption <-
 
                 return(param_calibrated)
 
-                return(swaption_data)
-
         }
-
 
 #' Title
 #'
@@ -88,7 +85,6 @@ convert_swaption_vols <-
                 ATMStrikes <- matrix(nrow = N, ncol = M)
                 Annuity <- matrix(nrow = N, ncol = M)
                 Prices <- matrix(nrow = N, ncol = M)
-                #Dates2 <- matrix(data = list(), nrow = N, ncol = M)
 
                 # Swaption Tenor from the input (!)
                 Tenor <-
@@ -100,20 +96,17 @@ convert_swaption_vols <-
                 TenorString <- tenor_to_string(tenor = Tenor)
 
                 # Pre-allocate list of Date combinations (Expiry-Tenors)
-                #Dates = list()
 
                 # Parse valdate
-                valdate <-
-                        parse_date_internal(DateToParse = valdate, DateType = "European")
+                valdate <- parse_date_internal(DateToParse = valdate, DateType = "European")
 
                 # Create a calendar
                 bizdays::create.calendar("Actual", weekdays = c("saturday", "sunday"))
 
                 # We loop over the rows and columns and convert the Vols
-                for (i in 1:N) {
-                        # Loops over rows
-                        for (j in 2:M) {
-                                # Loops over columns
+                for (i in 1:N) { # Loops over rows
+                        for (j in 2:M) { # Loops over columns
+
                                 # Name of the "Expiry - Tenor" Identifier
                                 Name <-
                                         paste0(vols[i, 1],
@@ -125,14 +118,10 @@ convert_swaption_vols <-
                                         roll_month(Date = valdate,
                                                 Offset = 12 * vols[i, 1]) # Option Expiry in MONTHS
                                 StartDate <-
-                                        parse_date_internal(
-                                                DateToParse = roll_weekday(
-                                                        Day = StartDate,
-                                                        BusDayConv = "mf"
-                                                ),
-                                                # Business Day Convention
-                                                DateType = "European"
-                                        )
+                                        parse_date_internal(DateToParse = roll_weekday(Day = StartDate,
+                                                BusDayConv = "mf"), # Business Day Convention
+                                                DateType = "European")
+
                                 StartDate <-
                                         offset(dates = StartDate,
                                                 n = 2,
@@ -146,19 +135,6 @@ convert_swaption_vols <-
                                                 DateType = "European"
                                         )
 
-                                # Dates[[Name]] <-
-                                #         generate_dates(
-                                #                 StartDate = StartDate,
-                                #                 EndDate = EndDate,
-                                #                 ValDate = valdate,
-                                #                 CouponFreq = TenorString,
-                                #                 BusDayConv = "mf",
-                                #                 Output = "Frame"
-                                #         )
-                                #
-                                # Dates2[i, j][[1]] <- Dates[[Name]]
-                                #
-
                                 Output <-
                                         forward_swap_rate(
                                                 StartDate = StartDate,
@@ -171,17 +147,16 @@ convert_swaption_vols <-
 
                                 ATMStrikes[i, j] <-
                                         Output[[1]] # ATM Strike is the Forward Swap Rate
+
                                 Annuity[i, j] <- Output[[2]]
 
                                 # Calculate Swaption Price
                                 Prices[i, j] <-
                                         value_swaption(
                                                 FwdRate = Output[[1]],
-                                                Strike = Output[[1]],
-                                                # All ATM Swaptions
+                                                Strike = Output[[1]], # All ATM Swaptions
                                                 Vol = vols[i, j],
-                                                T = as.numeric(vols[i, 1]),
-                                                # Options Expiry
+                                                T = as.numeric(vols[i, 1]), # Options Expiry
                                                 Annuity = Output[[2]],
                                                 Notional = 1000000,
                                                 Shift = 0,

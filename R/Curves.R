@@ -287,7 +287,7 @@ annuity_fixed_leg <-
                 DayCount = "30/360") {
 
                 # Fixed leg Annuity
-                DatesBegin <-
+                DatesBegin <- generate_schedule(effective_date = StartDate,termination_date = EndDate,tenor = )
                         generate_dates(
                                 StartDate = StartDate,
                                 EndDate = EndDate,

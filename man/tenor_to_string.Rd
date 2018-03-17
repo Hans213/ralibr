@@ -2,13 +2,20 @@
 % Please edit documentation in R/Dates.R
 \name{tenor_to_string}
 \alias{tenor_to_string}
+\alias{tenor_to_string}
 \title{Convert a numeric Tenor to a String}
 \usage{
+tenor_to_string(tenor)
+
 tenor_to_string(tenor)
 }
 \arguments{
 \item{tenor}{}
+
+\item{tenor}{}
 }
 \description{
 Convert a numeric Tenor to a String
+
+Convert a string Tenor to a numeric
 }
