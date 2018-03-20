@@ -14,16 +14,17 @@ bump_curve <- function(Curve, Bump = 0.0001, IsDiscounts = TRUE){
         # Take a single Curve and bump the Zero rates with 1 bps.
         # The default setting assumes that column 2 contains Discount factors
         # Output the new Discount curve (with dates)
-
-        N <- length(Curve[,1])
+        # Curve <- mutate(.data = Curve, Start = as.Date(as.numeric(Start),origin="1970-01-01")) %>% mutate(Time = yearfrac(DateBegin = Start, DateEnd = Date, DayCountConv = "act/360"))
+        N <- dim(Curve)[1]
         StartDates <- rep(x = Curve[1,1], N)
         T <- yearfrac(DateBegin = StartDates, DateEnd = Curve[,1], DayCountConv = "act/360")
-        if(IsDiscounts){
+
+        if (IsDiscounts){
                 ZeroRates <- discount_to_rate(DF = Curve[,2], T = T, Compounding = "CC")
                 ZeroRatesBump <- ZeroRates + Bump
                 CurveBump <- Curve;
                 CurveBump[,2] <- rate_to_discount(Rate = ZeroRatesBump,T = T,Compounding = "CC")
-        }else{
+        } else{
                 CurveBump <- Curve
                 CurveBump <- Curve[,2]+Bump
         }
@@ -89,13 +90,11 @@ instant_forward <- function(Curve, t, delta = 0.001) {
         Curve[, 1] <- (Curve[, 1] - Curve[1, 1]) / 360
         Curve[, 2] <- log(Curve[, 2])
 
-        Fwd1 <-
-                interpolate(X = Curve[,1],Y = Curve[,2],x = t,method = "cs")
-
-        Fwd2 <-
-                interpolate(X = Curve[,1],Y = Curve[,2],x = t + delta, method = "cs")
+        Fwd1 <- interpolate(X = Curve[,1],Y = Curve[,2],x = t,method = "cs")
+        Fwd2 <- interpolate(X = Curve[,1],Y = Curve[,2],x = t + delta, method = "cs")
 
         Inst_Fwd <- -(Fwd2 - Fwd1) / delta
+
         return(Inst_Fwd)
 }
 
@@ -168,7 +167,6 @@ rate_to_discount <- function(Rate, T, Compounding = "CC"){
 
 interpolate <- function(X, Y, x, method = "linear"){
 
-
         # No longer using characters as Input
 
         # if(class(x)=="character"){
@@ -183,21 +181,25 @@ interpolate <- function(X, Y, x, method = "linear"){
                 x <- as.numeric(x)
         }
 
+        # Length
+        N <- length(x)
+        output <- rep(NA,N)
+
         # Check if Point is inside the Vector X range
-        if (any(x<min(X))) stop("Point < min(X)")
+        #if (any(x<min(X))) stop("Error in interpolate: x < min(X)")
 
         # Interpolate given method
         if (method=="linear"|method=="lin"|method=="l"){
                 if(any(x>max(X))){stop("x > max(X) - Use method = 'cs' for Extrapolation")}
-                Interpolate <- approx(x = X,y = Y,xout = x)[[2]]
+                output[x>=min(X)] <- approx(x = X,y = Y,xout = x[x>=min(X)])[[2]]
         }
         else if (method=="cs"|method=="cubicspline"|method=="spline"){
                 if(any(x>max(X))){warning("x > max(X) - Extrapolating")} # Maybe better to interpolate flat past final ?
-                Interpolate <- spline(x = X,y = Y,method = "natural",xout = x)[[2]]
+                output[x>=min(X)] <- spline(x = X,y = Y,method = "natural",xout = x[x>=min(X)])[[2]]
         }
         else stop("Input 'method' is wrong")
 
-        return(Interpolate)
+        return(output)
 }
 
 #' Title
@@ -287,36 +289,26 @@ annuity_fixed_leg <-
                 DayCount = "30/360") {
 
                 # Fixed leg Annuity
-                DatesBegin <-
-                        generate_dates(
-                                StartDate = StartDate,
-                                EndDate = EndDate,
-                                CouponFreq = CouponFreq,
-                                BusDayConv = BusDayConv,
-                                ValDate = ValDate,
-                                Output = "Frame"
-                        )
-                DatesEnd <- DatesBegin$EndDates
-                DatesBegin <- DatesBegin$StartDates
+                Dates <- generate_schedule(effective_date = StartDate,
+                                                termination_date = EndDate,
+                                                tenor = convert_frequency(input = CouponFreq,atomic = TRUE),
+                                                calendar = EUTACalendar(),
+                                                bdc = BusDayConv)
 
-                N = length(DatesBegin)
+                N = dim(Dates)[1]
 
-                DatesFrac <-
-                        yearfrac(
-                                DateBegin = DatesBegin,
-                                DateEnd = DatesEnd,
+                Dates <- Dates %>% mutate(fraction = yearfrac(
+                                DateBegin = start_dates,
+                                DateEnd = end_dates,
                                 DayCountConv = DayCount
-                        )
-
-                DiscountFactors <-
-                        interpolate(
+                        )) %>% mutate(discount_factors = interpolate(
                                 X = cvDiscount[, 1],
                                 Y = cvDiscount[, 2],
-                                x = DatesEnd,
+                                x = end_dates,
                                 method = "cs"
-                        )
+                        ))
 
-                FixedLeg <- sum(DiscountFactors * DatesFrac)
+                FixedLeg <- sum(Dates$discount_factors * Dates$fraction)
 
                 return(FixedLeg)
         }
@@ -333,7 +325,6 @@ annuity_fixed_leg <-
 #' @param DayCount
 #'
 #' @return
-#' @importFrom dplyr lead
 #'
 #' @examples
 annuity_floating_leg <-
@@ -347,44 +338,31 @@ annuity_floating_leg <-
                 DayCount = "act/360") {
 
                 # Calculate floating leg annuity
-                Dates <-
-                        generate_dates(
-                                StartDate = StartDate,
-                                EndDate = EndDate,
-                                CouponFreq = CouponFreq,
-                                BusDayConv = BusDayConv,
-                                ValDate = ValDate,
-                                Output = "Frame"
-                        )
+                Dates <- generate_schedule(effective_date = StartDate,
+                                           termination_date = EndDate,
+                                           tenor = convert_frequency(input = CouponFreq,atomic = TRUE),
+                                           calendar = EUTACalendar(),
+                                           bdc = BusDayConv)
 
-                DatesEnd <- Dates$EndDates
-                DatesBegin <- Dates$StartDates
+                N <- dim(Dates)[1]
 
-                N <- length(DatesBegin)
-
-                DatesFracFl <-
-                        yearfrac(
-                                DateBegin = DatesBegin,
-                                DateEnd = DatesEnd,
+                Dates <- Dates %>% mutate(fraction = yearfrac(
+                                DateBegin = start_dates,
+                                DateEnd = end_dates,
                                 DayCountConv = DayCount
-                        )
-                Fwds <-
-                        forward_rate(
-                                StartDate = DatesBegin,
-                                EndDate = DatesEnd,
+                        )) %>% mutate(forward_rate = forward_rate(
+                                StartDate = start_dates,
+                                EndDate = end_dates,
                                 frame = cvTenor,
                                 DayCount = DayCount
-                        )
-
-                DiscountFactorsFl <-
-                        interpolate(
+                        )) %>% mutate(discount_factors = interpolate(
                                 X = cvDiscount[, 1],
                                 Y = cvDiscount[, 2],
-                                x = DatesEnd,
+                                x = end_dates,
                                 method = "cs"
-                        )
+                        ))
 
-                FloatingLeg <- sum(Fwds * DatesFracFl * DiscountFactorsFl)
+                FloatingLeg <- sum(Dates$forward_rate * Dates$fraction * Dates$discount_factors)
 
                 return(FloatingLeg)
         }

@@ -10,7 +10,13 @@
 #'
 #' @examples
 calibrate_hull_white_swaption <-
-        function(valdate, cvDiscount, cvTenor, vols) {
+        function(cvDiscount, cvTenor, vols) {
+
+                # ValDate is from Curve
+                valdate <- cvDiscount[1,1]
+
+                if(valdate!=cvTenor[1,1]){stop("Curves do not have the same Valuation Date")}
+
                 # Convert the vols
                 swaption_data <-
                         convert_swaption_vols(
@@ -87,13 +93,12 @@ convert_swaption_vols <-
                 Prices <- matrix(nrow = N, ncol = M)
 
                 # Swaption Tenor from the input (!)
-                Tenor <-
-                        substr(x = names(vols)[1],
+                Tenor <- as.numeric(substr(x = names(vols)[1],
                                 start = 4,
-                                stop = 4)
+                                stop = 4))
 
                 # Convert Tenor to a string
-                TenorString <- tenor_to_string(tenor = Tenor)
+                #TenorString <- tenor_to_string(tenor = Tenor)
 
                 # Pre-allocate list of Date combinations (Expiry-Tenors)
 
@@ -101,7 +106,8 @@ convert_swaption_vols <-
                 valdate <- parse_date_internal(DateToParse = valdate, DateType = "European")
 
                 # Create a calendar
-                bizdays::create.calendar("Actual", weekdays = c("saturday", "sunday"))
+                #bizdays::create.calendar("Actual", weekdays = c("saturday", "sunday"))
+                euta <- EUTACalendar()
 
                 # We loop over the rows and columns and convert the Vols
                 for (i in 1:N) { # Loops over rows
@@ -113,27 +119,18 @@ convert_swaption_vols <-
                                                 "-",
                                                 names(vols)[j])
 
-                                # Starting and Ending Date of the underlying Swap
-                                StartDate <-
-                                        roll_month(Date = valdate,
-                                                Offset = 12 * vols[i, 1]) # Option Expiry in MONTHS
-                                StartDate <-
-                                        parse_date_internal(DateToParse = roll_weekday(Day = StartDate,
-                                                BusDayConv = "mf"), # Business Day Convention
-                                                DateType = "European")
+                                StartDate <- shift(dates = shift(dates = valdate,
+                                                                 period = months(12*vols[i,1]),
+                                                                 bdc = "mf",
+                                                                 calendar = euta),
+                                                   period = lubridate::days(-2),
+                                                   bdc = "u",
+                                                   calendar = euta)
 
-                                StartDate <-
-                                        offset(dates = StartDate,
-                                                n = 2,
-                                                cal = "Actual") # Spot lag of 2 days from Option expiry
-                                EndDate <-
-                                        parse_date_internal(
-                                                DateToParse = roll_month(
-                                                        Date = StartDate,
-                                                        Offset = 12 * as.numeric(names(vols)[j])
-                                                ),
-                                                DateType = "European"
-                                        )
+                                EndDate <- shift(dates = StartDate,
+                                                 period = months(12*as.numeric(names(vols)[j])),
+                                                 bdc = "mf",
+                                                 calendar = euta)
 
                                 Output <-
                                         forward_swap_rate(
@@ -142,11 +139,10 @@ convert_swaption_vols <-
                                                 ValDate = valdate,
                                                 cvDiscount = cvDiscount,
                                                 cvTenor = cvTenor,
-                                                FloatingFreq = TenorString
+                                                FloatingFreq = Tenor
                                         )
 
-                                ATMStrikes[i, j] <-
-                                        Output[[1]] # ATM Strike is the Forward Swap Rate
+                                ATMStrikes[i, j] <- Output[[1]] # ATM Strike is the Forward Swap Rate
 
                                 Annuity[i, j] <- Output[[2]]
 

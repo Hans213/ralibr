@@ -75,13 +75,3 @@ generate_schedule(effective_date = ymd(20120103), termination_date = ymd(2013010
 ```
 
 
-## Year fractions
-
-Time lengths then usually need to be computed for each interval of such a schedule according to some day basis convention:
-
-```{r year_frac}
-# 30/360us convention
-year_frac(ymd("2010-03-31"), ymd("2012-03-31"), "30/360us")
-# act/365 convention
-year_frac(ymd("2010-02-28"), ymd("2012-03-31"), "act/365")
-```

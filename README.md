@@ -3,6 +3,8 @@
 ralibr
 ======
 
+ralibr is a repository with a range of functions
+
 Installation
 ------------
 
@@ -31,7 +33,6 @@ You can determine whether dates are business days in a specific locale or specif
 
 ``` r
 library("lubridate", warn.conflicts = FALSE)
-#> Warning: package 'lubridate' was built under R version 3.4.3
 library("fmdates")
 euta <- EUTACalendar()
 aume <- AUMECalendar()
@@ -71,18 +72,4 @@ generate_schedule(effective_date = ymd(20120103), termination_date = ymd(2013010
   eom_rule = FALSE)
 #> [1] 2012-01-03 UTC--2012-04-03 UTC 2012-04-03 UTC--2012-07-03 UTC
 #> [3] 2012-07-03 UTC--2012-10-03 UTC 2012-10-03 UTC--2013-01-03 UTC
-```
-
-Year fractions
---------------
-
-Time lengths then usually need to be computed for each interval of such a schedule according to some day basis convention:
-
-``` r
-# 30/360us convention
-year_frac(ymd("2010-03-31"), ymd("2012-03-31"), "30/360us")
-#> [1] 2
-# act/365 convention
-year_frac(ymd("2010-02-28"), ymd("2012-03-31"), "act/365")
-#> [1] 2.087671
 ```

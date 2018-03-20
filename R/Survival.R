@@ -14,7 +14,6 @@
 #'
 #' @export
 #'
-#' @importFrom dplyr lag
 #'
 #' @examples
 survival <-
@@ -25,24 +24,19 @@ survival <-
                 Convention = "act/360") {
 
                 # Date inputs for Internal use
-                SurvivalDate <-
-                        parse_date_internal(DateToParse = SurvivalDate, DateType = "European")
-                ValuationDate <-
-                        parse_date_internal(DateToParse = ValuationDate, DateType = "European")
-                Maturities <-
-                        parse_date_internal(DateToParse = Maturities, DateType = "European")
+                SurvivalDate <- parse_date_internal(DateToParse = SurvivalDate, DateType = "European")
+                ValuationDate <- parse_date_internal(DateToParse = ValuationDate, DateType = "European")
+                Maturities <- parse_date_internal(DateToParse = Maturities, DateType = "European")
 
                 # Extract EndDates that lie before the SurvivalDate
-                EndDates <-
-                        c(Maturities[Maturities < SurvivalDate], SurvivalDate)
+                EndDates <- c(Maturities[Maturities < SurvivalDate], SurvivalDate)
 
                 # Calculate per period the StartDate
-                StartDates <- lag(x = EndDates)
+                StartDates <- dplyr::lag(x = EndDates)
                 StartDates[1] <- ValuationDate
 
                 # Put in frame
-                Frame <-
-                        data_frame(EndDates = EndDates, StartDates = StartDates)
+                Frame <- data_frame(EndDates = EndDates, StartDates = StartDates)
 
                 # Calculate Yearfrac given the convention
                 Frame$Frac <-
@@ -107,15 +101,14 @@ bootstrap_cds <-
                 # ZeroData needs to be a an Nx2 Matrix containing Dates (Dates) and Discount factors (numerics)
 
                 # Put together the CDS frame
-                MarketData <-
-                        data.frame(CDS.Maturities = Maturity, CDS.Quotes = Spreads)
+                MarketData <- data.frame(CDS.Maturities = Maturity, CDS.Quotes = Spreads)
+
+                # Length
+                N <- dim(MarketData)[1]
 
                 # Convert input dates to R Date format for Internal use
-                ValDate <-
-                        parse_date_internal(DateToParse = ValDate, DateType = "European")
-
-                Curve[,1] <-
-                        parse_date_internal(DateToParse = Curve[,1], DateType = "European")
+                ValDate <- parse_date_internal(DateToParse = ValDate, DateType = "European")
+                Curve[,1] <- parse_date_internal(DateToParse = Curve[,1], DateType = "European")
 
 
                 ## Actual function
@@ -129,54 +122,36 @@ bootstrap_cds <-
                 }
 
                 # Put ValuationDate in Date
-                ValDate <-
-                        parse_date_internal(DateToParse = ValDate)
+                ValDate <- parse_date_internal(DateToParse = ValDate)
 
                 # The idea is to solve the Hazards recursively
-                MarketData <-
-                        cbind(MarketData, rep(x = 0.01, times = length(MarketData[, 1])))
+                MarketData <- cbind(MarketData, rep(x = 0.01, times = length(MarketData[, 1])))
 
                 # Put in Frame
-                MarketData <- as.data.frame(x = MarketData)
+                MarketData <- as.tibble(x = MarketData)
                 colnames(MarketData) <- c("CDS.Maturities", "CDS.Quotes","Hazards")
 
                 # Tenors to Maturities (= Dates)
-                MarketData[, 1] <-
+                #MarketData[,1] <- as.Date(x = mapply(FUN = shift, rep(list(ValDate), N), as.list(x = MarketData[, 1])) ,origin = "1970-01-01")
+                MarketData <- dplyr::mutate(.data = MarketData, CDS.Dates = NA)
+                for (i in 1:N){
+                        MarketData$CDS.Dates[i] <- shift(dates = ValDate,period = months(12*Maturity[i]),bdc = "f",calendar = EUTACalendar())
+                }
+                MarketData$CDS.Dates <- as.Date(x = MarketData$CDS.Dates,origin = "1970-01-01")
+
+                MarketData$CDS.Dates.IMM <-
                         as.Date(
-                                mapply(
-                                        FUN = roll_month,
-                                        Date = ValDate,
-                                        Offset = 12 * MarketData[, 1]
-                                ),
+                                x = sapply(X = MarketData$CDS.Dates, FUN = next_imm),
                                 origin = "1970-01-01"
                         )
 
-                # ISDA Convention = "Following"
-                MarketData[, 1] <-
-                        parse_date_internal(roll_weekday(
-                                Day = MarketData[, 1],
-                                BusDayConv = "F"
-                        ))
-
-
-                MarketData$CDS.Maturities.IMM <-
-                        as.Date(
-                                x = sapply(X = MarketData$CDS.Maturities, FUN = next_imm),
-                                origin = "1970-01-01"
-                        )
-                MarketData$CDS.Maturities.IMM <-
-                        parse_date_internal(roll_weekday(
-                                Day = MarketData$CDS.Maturities.IMM,
-                                BusDayConv = "F"
-                        ))
+                MarketData$CDS.Dates.IMM <- adjust(dates = MarketData$CDS.Dates.IMM,bdc = "f",calendar = EUTACalendar())
 
                 # If OutputDates = NULL then assign them the Maturities
                 if (is.null(x = OutputDates)) {
-                        OutputDates <- MarketData$CDS.Maturities.IMM
+                        OutputDates <- MarketData$CDS.Dates.IMM
                 }
 
-                # Length of the Term Structure
-                N <- length(MarketData[, 1])
 
                 # Initial Value for Hazard Rate in bootstrapping
                 HazardStart <- 0.01
@@ -205,7 +180,7 @@ bootstrap_cds <-
                 # Select correct Output and return
                 if (Out == "Hazard") {
                         # Currently for hazards just return them with the Original Dates
-                        MarketData[, 1] <- date_to_excel(d1 = MarketData[, 1])
+                        MarketData[, 1] <- date_to_excel(d1 = MarketData$CDS.Dates)
                         return(MarketData[, c(1, 3)])
                 } else{
                         # For both options we need the Survival rates
@@ -213,7 +188,7 @@ bootstrap_cds <-
                                 X = OutputDates,
                                 FUN = survival,
                                 ValuationDate = ValDate,
-                                Maturities = MarketData$CDS.Maturities,
+                                Maturities = MarketData$CDS.Dates,
                                 Hazards = MarketData$Hazards,
                                 Convention = Conv
                         )
@@ -267,100 +242,73 @@ bootstrap_quote <-
                 Curve,
                 Convention,
                 LGD) {
+
                 # First put the Hazard (Parameter to optimize) in the Quotes
                 Quotes$Hazards[i] <- Hazard
 
                 # Bootstrap the maturity given the previously calculated Hazards unchanged
-                Frame <- generate_dates(
-                        StartDate = "1970-01-01",
-                        EndDate = Quotes$CDS.Maturities[i],
-                        ValDate = ValDate,
-                        IMM = TRUE,
-                        BusDayConv = "f",
-                        Output = "Frame"
-                )
-
-                # ISDA convention is "following"
-                Frame$EndDates <-
-                        parse_date_internal(roll_weekday(Day = Frame$EndDates))
+                Frame <- generate_schedule(effective_date = ValDate,termination_date = Quotes$CDS.Dates.IMM[i],tenor = months(3),calendar = EUTACalendar(),imm_dates = TRUE)
 
                 # Frac is act/360 as by ISDA convention
                 Frame$Frac <- yearfrac(
-                        DateBegin = Frame$StartDates,
-                        DateEnd = Frame$EndDates,
+                        DateBegin = Frame$start_dates,
+                        DateEnd = Frame$end_dates,
                         DayCountConv = "act/360"
                 )
 
                 # First period is "Riskless" before ValDate
                 Frame$Frac[1] <- yearfrac(
                         DateBegin = ValDate,
-                        DateEnd = Frame$EndDates[1],
+                        DateEnd = Frame$end_dates[1],
                         DayCountConv = "act/360"
                 )
 
                 # Frac2 using user-input Convention? (For Survival)
                 Frame$Frac2 <- yearfrac(
-                        DateBegin = Frame$StartDates,
-                        DateEnd = Frame$EndDates,
+                        DateBegin = Frame$start_dates,
+                        DateEnd = Frame$end_dates,
                         DayCountConv = Convention
                 )
 
                 # First period is "Riskless" before ValDate
                 Frame$Frac2[1] <- yearfrac(
                         DateBegin = ValDate,
-                        DateEnd = Frame$EndDates[1],
+                        DateEnd = Frame$end_dates[1],
                         DayCountConv = Convention
                 )
 
                 # CDS - running spread for contract duration
-                Frame$Spread <- rep(x = Quotes[, 2][i] / 10000,
-                        times = length(Frame$EndDates))
+                Frame$Spread <- as.numeric(Quotes[i, 2]) / 10000
 
                 Frame$EndDiscount <-
                         interpolate(
                                 X = Curve[, 1],
                                 Y = Curve[, 2],
-                                x = Frame$EndDates,
+                                x = Frame$end_dates,
                                 method = "cs"
                         )
 
                 Frame$Hazards <- sapply(
-                        X = Frame$EndDates,
+                        X = Frame$end_dates,
                         FUN = function(x, y)
                                 return(Quotes$Hazards[which.max(y >= x)]),
-                        y = Quotes$CDS.Maturities.IMM
+                        y = Quotes$CDS.Dates.IMM
                 )
 
                 # We are looping over here -> Try to find an efficient method
                 Frame$Survival = NA
-                for (i in 1:length(Frame$StartDates)) {
+                for (i in 1:length(Frame$start_dates)) {
                         Frame$Survival[i] <- exp(-sum(Frame$Frac2[1:i] * Frame$Hazards[1:i]))
                 }
 
-                Frame <- mutate(.data = Frame, CumulDefault = 1 - Survival)
-                Frame <-
-                        mutate(.data = Frame,
-                                PeriodDefault = c(1 - Survival[1], diff(Survival) * -1))
-
-                # Premium Leg
-                Frame <-
-                        mutate(.data = Frame,
-                                Premium = Frac * Spread * Survival * EndDiscount)
-
-                # Add Accrued premia here
-                Frame <-
-                        mutate(.data = Frame,
-                                Accrued = Frac * Spread * EndDiscount * PeriodDefault)
-
-                # Protection Leg
-                Frame <-
-                        mutate(.data = Frame,
-                                Protection = LGD * EndDiscount * PeriodDefault)
+                Frame <- mutate(.data = Frame, CumulDefault = 1 - Survival) %>%
+                        mutate(PeriodDefault = c(1 - Survival[1], diff(Survival) * -1)) %>%
+                        mutate(Premium = Frac * Spread * Survival * EndDiscount) %>%
+                        mutate(Accrued = Frac * Spread * EndDiscount * PeriodDefault) %>%
+                        mutate(Protection = LGD * EndDiscount * PeriodDefault)
 
                 # Return TestValue
-                TestValue <-
-                        ((sum(Frame$Premium) + sum(Frame$Accrued)) * 10000 - sum(Frame$Protection) *
-                                        10000) ^ 2
+                TestValue <- ((sum(Frame$Premium) + sum(Frame$Accrued)) * 10000 - sum(Frame$Protection) * 10000) ^ 2
 
                 return(TestValue)
         }

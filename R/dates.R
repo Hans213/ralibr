@@ -702,39 +702,39 @@ actual_actual_isda <- function (date1, date2)
 #' \code{date1} and \code{date2}.
 #' @examples
 #' require(lubridate)
-#' year_frac(ymd("2010-03-31"), ymd("2012-03-31"), "30/360us") # 2
-#' year_frac(ymd("2010-02-28"), ymd("2012-03-31"), "act/360")  # 2.116667
-#' year_frac(ymd("2010-02-28"), ymd("2012-03-31"), "act/365")  # 2.087671
-#' year_frac(ymd("2010-02-28"), ymd("2012-03-31"), "act/actisda")  # 2.086998
+#' yearfrac(ymd("2010-03-31"), ymd("2012-03-31"), "30/360us") # 2
+#' yearfrac(ymd("2010-02-28"), ymd("2012-03-31"), "act/360")  # 2.116667
+#' yearfrac(ymd("2010-02-28"), ymd("2012-03-31"), "act/365")  # 2.087671
+#' yearfrac(ymd("2010-02-28"), ymd("2012-03-31"), "act/actisda")  # 2.086998
 #' @references \url{http://en.wikipedia.org/wiki/Day_count_convention}
 #' @family counter methods
 #' @export
 
-yearfrac <- function(StartDate, EndDate, DayCountConv, maturity_date = NULL)
+yearfrac <- function(DateBegin, DateEnd, DayCountConv, maturity_date = NULL)
 {
         # Check that day basis is valid
         assertthat::assert_that(is_valid_day_basis(DayCountConv))
 
         # Convert inputs to Date (time stamp details irrelevant to these calcs)
-        StartDate <- lubridate::as_date(StartDate)
-        EndDate <- lubridate::as_date(EndDate)
+        DateBegin <- lubridate::as_date(DateBegin)
+        DateEnd <- lubridate::as_date(DateEnd)
 
         # Make sure inputs are vectors of same length. This will allow us to
         # vectorise the calculation
-        max_n_dates <- max(NROW(StartDate), NROW(EndDate))
+        max_n_dates <- max(NROW(DateBegin), NROW(DateEnd))
         yrs <- vector("numeric", max_n_dates)
 
-        StartDate <- rep(StartDate, length.out = max_n_dates)
-        EndDate <- rep(EndDate, length.out = max_n_dates)
+        DateBegin <- rep(DateBegin, length.out = max_n_dates)
+        DateEnd <- rep(DateEnd, length.out = max_n_dates)
         DayCountConv <- rep(DayCountConv, length.out = max_n_dates)
         if(!is.null(maturity_date)){
                 maturity_date <- rep(maturity_date, length.out = max_n_dates)
         }
 
         # Prep work
-        to_reverse <- StartDate > EndDate
+        to_reverse <- DateBegin > DateEnd
         if (any(to_reverse, na.rm = TRUE)) {
-                yrs[to_reverse] <- -year_frac(EndDate[to_reverse], StartDate[to_reverse],
+                yrs[to_reverse] <- -yearfrac(DateEnd[to_reverse], DateBegin[to_reverse],
                         DayCountConv[to_reverse], maturity_date[to_reverse])
         }
 
@@ -749,30 +749,30 @@ yearfrac <- function(StartDate, EndDate, DayCountConv, maturity_date = NULL)
         is_actactisda <- toupper(DayCountConv) == "ACT/ACTISDA"
 
         if (any(is_30360))
-                yrs[is_30360] <- thirty_360(StartDate[is_30360], EndDate[is_30360])
+                yrs[is_30360] <- thirty_360(DateBegin[is_30360], DateEnd[is_30360])
 
         if (any(is_30360us))
-                yrs[is_30360us] <- thirty_360_us(StartDate[is_30360us], EndDate[is_30360us])
+                yrs[is_30360us] <- thirty_360_us(DateBegin[is_30360us], DateEnd[is_30360us])
 
         if (any(is_30e360))
-                yrs[is_30e360] <- thirty_360_eu(StartDate[is_30e360], EndDate[is_30e360])
+                yrs[is_30e360] <- thirty_360_eu(DateBegin[is_30e360], DateEnd[is_30e360])
 
         if (any(is_30e360isda))
-                yrs[is_30e360isda] <- thirty_360_eu_isda(StartDate[is_30e360isda],
-                        EndDate[is_30e360isda], maturity_date[is_30e360isda])
+                yrs[is_30e360isda] <- thirty_360_eu_isda(DateBegin[is_30e360isda],
+                        DateEnd[is_30e360isda], maturity_date[is_30e360isda])
 
         if (any(is_30ep360))
-                yrs[is_30ep360] <- thirty_360_eu_plus(StartDate[is_30ep360], EndDate[is_30ep360])
+                yrs[is_30ep360] <- thirty_360_eu_plus(DateBegin[is_30ep360], DateEnd[is_30ep360])
 
         if (any(is_act360))
-                yrs[is_act360] <- actual_360(StartDate[is_act360], EndDate[is_act360])
+                yrs[is_act360] <- actual_360(DateBegin[is_act360], DateEnd[is_act360])
 
         if (any(is_act365))
-                yrs[is_act365] <- actual_365(StartDate[is_act365], EndDate[is_act365])
+                yrs[is_act365] <- actual_365(DateBegin[is_act365], DateEnd[is_act365])
 
         if (any(is_actactisda))
-                yrs[is_actactisda] <- actual_actual_isda(StartDate[is_actactisda],
-                        EndDate[is_actactisda])
+                yrs[is_actactisda] <- actual_actual_isda(DateBegin[is_actactisda],
+                        DateEnd[is_actactisda])
 
         # Return value
         yrs
@@ -781,7 +781,7 @@ yearfrac <- function(StartDate, EndDate, DayCountConv, maturity_date = NULL)
 #' Day basis conventions
 #'
 #' Checks whether day basis conventions are valid. Supported day basis
-#' conventions are documented in [year_frac()]
+#' conventions are documented in [yearfrac()]
 #'
 #' @param day_basis A character vector of day basis conventions.
 #' @return will return `TRUE` for `day_basis` elements that are any of the
@@ -852,8 +852,9 @@ is_valid_day_basis <- function (day_basis) {
 #'  bdc, stub, eom_rule)
 #' @export
 #' @family calendar methods
+#' @importFrom dplyr "%>%"
 
-generate_schedule <- function (effective_date, termination_date, tenor,
+generate_schedule <- function (effective_date, termination_date, tenor, reset = NULL,
         calendar = EmptyCalendar(), bdc = "u", stub = "short_front", eom_rule = FALSE,
         first_date = effective_date, last_date = termination_date, imm_dates = FALSE)
 {
@@ -871,7 +872,7 @@ generate_schedule <- function (effective_date, termination_date, tenor,
         }
 
         # Set things up
-        yrs <- year_frac(first_date, last_date, "act/365")
+        yrs <- yearfrac(first_date, last_date, "act/365")
         suppressMessages(pa <- trunc(lubridate::years(1) / tenor))
         # Add some wiggle room
         n <- trunc(yrs * pa) + pa
@@ -939,7 +940,20 @@ generate_schedule <- function (effective_date, termination_date, tenor,
         }
 
         # Return!
-        lubridate::interval(utils::head(res, -1), utils::tail(res, -1))
+        if (is.null(reset)){
+                schedule <- dplyr::as_tibble(x = list(start_dates = res,
+                                               end_dates = dplyr::lead(x = res))) %>% dplyr::slice(-length(res))
+                return(schedule)
+        } else
+                assertthat::assert_that(is_atomic_period(reset))
+                schedule <- dplyr::as_tibble(x = list(reset_dates = shift(dates = res,
+                                                                   period = reset,
+                                                                   bdc = bdc,
+                                                                   calendar = calendar),
+                                               start_dates = res,
+                                               end_dates = dplyr::lead(x = res))) %>% dplyr::slice(-length(res))
+                return(schedule)
+
 }
 
 next_imm <- function(Date) {
@@ -1396,7 +1410,7 @@ is_atomic_period <- function (period) {
 }
 
 is_valid_bdc <- function (bdc) {
-        all(bdc %in% c('u', 'f', 'mf', 'p', 'mp', 'ms'))
+        all(toupper(bdc) %in% c('U', 'F', 'MF', 'P', 'MP', 'MS'))
 }
 
 period_type <- function (period) {
@@ -1407,28 +1421,3 @@ period_type <- function (period) {
 period_length <- function (period) {
         methods::slot(period, period_type(period))
 }
-
-#' Convert a numeric Tenor to a String
-#'
-#' @param tenor
-#'
-#' @return
-#' @export
-#'
-#' @examples
-tenor_to_string <- function(tenor){
-        if (tenor == "1") {
-                Tenor <- "m"
-        }
-        if (tenor == "3") {
-                Tenor <- "q"
-        }
-        if (tenor == "6") {
-                Tenor <- "sa"
-        }
-        if (tenor == "12") {
-                Tenor <- "a"
-        }
-        return(Tenor)
-}
-
