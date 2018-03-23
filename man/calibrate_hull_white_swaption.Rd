@@ -4,7 +4,7 @@
 \alias{calibrate_hull_white_swaption}
 \title{Calibration of one-factor Hull-White parameters from Swaption volatilies}
 \usage{
-calibrate_hull_white_swaption(cvDiscount, cvTenor, vols)
+calibrate_hull_white_swaption(cvDiscount, cvTenor, vols, method = "method_1")
 }
 \arguments{
 \item{vols}{}
