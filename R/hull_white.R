@@ -12,6 +12,11 @@
 calibrate_hull_white_swaption <-
         function(cvDiscount, cvTenor, vols, method = "method_1") {
 
+                # We should really abstract from the market data
+                # Create a link with CAS/Database
+                # Only input should be Valuation date / Currency / Tenor / Method
+                # Then extract inside the calibrate method functions
+
                 # ValDate is from Curve
                 valdate <- cvDiscount[1,1]
 
@@ -29,96 +34,62 @@ calibrate_hull_white_swaption <-
                                 valdate = valdate
                         )
 
-                if(method=="method_1"){
-                        output <- calibrate_method_1(swaption_data = swaption_data)
+                # Method 1: Calibrate 1 Alpha and 1 Sigma over the entire Cube
+                N <- dim(swaption_data$Vols)[1]
+                K <- dim(swaption_data$Vols)[2]
+
+                param_calibrated <- list()
+                if(method == "method_1"){
+                        param_initial <- c(0.003, 0.003)
+                        lower = rep(x = 0.00001, times = length(param_initial))
+                        upper = rep(0.06, times = length(param_initial))
                 }
-                if(method=="method_2"){
-                        output <- calibrate_method_2(swaption_data = swaption_data)
+                if(method == "method_2"){
+                        param_initial <- c(0.003, 0.003, 0.003, 0.003, 0.003, 0.003)
+                        lower = rep(x = 0.00001, times = length(param_initial))
+                        upper = rep(0.06, times = length(param_initial))
                 }
 
+                # Create a matrix of Booleans to set subset to calibrate
+                boolean_subset_matrix <- matrix(data = TRUE,nrow = N,ncol = K)
+                swaption_data_subset_vector <-
+                        lapply(
+                                X = swaption_data,
+                                FUN = function(x)
+                                        x[boolean_subset_matrix]
+                        )
 
+                param_calibrated <-
+                        GenSA::GenSA(
+                                par = param_initial, # This is alwasy a vector with S + Alpha so term structure creation should be in fit_swaptions
+                                fn = fit_swaptions,
+                                swaption_data_subset_vector,
+                                method = method,
+                                lower = lower,
+                                upper = upper,
+                                control = list(maxit = 10000,
+                                               threshold.stop = 0.02 * (N*K),
+                                               max.time = 10 * 60)
+                        )
+
+                parameters <- param_calibrated[[2]]
+                prices_own <- gurrieri_payer_swaption_closed_form_apply(parameters = parameters,swaption_data = swaption_data_subset_vector,method = method)
+                prices_orig <- unlist(swaption_data_subset_vector$Prices)
+                dim(prices_own) <- c(N,K)
+                dim(prices_orig) <- c(N,K)
+                Tenors <- unique(unlist(swaption_data_subset_vector$Tenors))
+                Expiries <- unique(unlist(swaption_data_subset_vector$Expiries))
+                prices_own <- dplyr::as_tibble(cbind(Expiries,prices_own))
+                prices_orig <- dplyr::as_tibble(cbind(Expiries,as.numeric(prices_orig)))
+                colnames(prices_own) <- c("Expiries",Tenors)
+                colnames(prices_orig) <- c("Expiries",Tenors)
+
+                output <- list(parameters,prices_own,prices_orig)
 
                 return(output)
 
         }
-calibrate_method_2 <- function(swaption_data){
 
-        # Method 2: Co-terminals
-        boolean_subset_matrix <- matrix(data = rep(x = as.numeric(x = data$Vols[,1]), 12),ncol = 12) + as.numeric(colnames(x = data$Vols[,-1]))==30
-
-        # Method 2: Calibrate 1 Alpha and 1 Sigma over CoTerminals
-        N <- dim(swaption_data$Vols)[1]
-        K <- dim(swaption_data$Vols)[2]
-
-        param_calibrated <- list()
-        param_initial <- c(0.003, 0.003)
-
-        # Create a matrix of Booleans to set subset to calibrate
-        boolean_subset_matrix <- matrix(data = TRUE,nrow = N,ncol = K)
-        swaption_data_subset_vector <-
-                lapply(
-                        X = swaption_data,
-                        FUN = function(x)
-                                x[boolean_subset_matrix]
-                )
-
-        param_calibrated <-
-                GenSA::GenSA(
-                        par = param_initial, # This is alwasy a vector with S + Alpha so term structure creation should be in fit_swaptions
-                        fn = fit_swaptions,
-                        swaption_data_subset_vector,
-                        lower = c(0.00001, 0.00001),
-                        upper = c(0.06, 0.06),
-                        control = list(maxit = 10000,
-                                       threshold.stop = 0.03 * (N*K),
-                                       max.time = 10 * 60)
-                )
-
-        parameters <- param_calibrated[[2]]
-        prices_own <- gurrieri_payer_swaption_closed_form_apply(parameters = parameters,
-                                                                swaption_data = swaption_data_subset_vector)
-        dim(prices_own) <- c(N,K)
-        output <- list(parameters,prices_own,swaption_data$Prices)
-        return(output)
-}
-
-calibrate_method_1 <- function(swaption_data){
-
-        # Method 1: Calibrate 1 Alpha and 1 Sigma over the entire Cube
-        N <- dim(swaption_data$Vols)[1]
-        K <- dim(swaption_data$Vols)[2]
-
-        param_calibrated <- list()
-        param_initial <- c(0.003, 0.003)
-
-        # Create a matrix of Booleans to set subset to calibrate
-        boolean_subset_matrix <- matrix(data = TRUE,nrow = N,ncol = K)
-        swaption_data_subset_vector <-
-                lapply(
-                        X = swaption_data,
-                        FUN = function(x)
-                                x[boolean_subset_matrix]
-                )
-
-        param_calibrated <-
-                GenSA::GenSA(
-                        par = param_initial, # This is alwasy a vector with S + Alpha so term structure creation should be in fit_swaptions
-                        fn = fit_swaptions,
-                        swaption_data_subset_vector,
-                        lower = c(0.00001, 0.00001),
-                        upper = c(0.06, 0.06),
-                        control = list(maxit = 10000,
-                                       threshold.stop = 0.03 * (N*K),
-                                       max.time = 10 * 60)
-                )
-
-        parameters <- param_calibrated[[2]]
-        prices_own <- gurrieri_payer_swaption_closed_form_apply(parameters = parameters,
-                                                                swaption_data = swaption_data_subset_vector)
-        dim(prices_own) <- c(N,K)
-        output <- list(parameters,prices_own,swaption_data$Prices)
-        return(output)
-}
 
 #' Title
 #'
@@ -243,35 +214,41 @@ convert_swaption_vols <-
 #' @export
 #'
 #' @examples
-fit_swaptions <- function(parameters, swaption_data) {
+fit_swaptions <- function(parameters, swaption_data, method) {
 
         # swaption_data will be a list of vectors due to subsetting in calling function
 
         # Closed form swaption prices
-        PSwaption <- gurrieri_payer_swaption_closed_form_apply(parameters = parameters,swaption_data = swaption_data)
+        PSwaption <- gurrieri_payer_swaption_closed_form_apply(parameters = parameters, swaption_data = swaption_data, method = method)
 
         # Sum Squared Error
         # This is not really correct but it represents the sum of the percentage differences
         SSE <- sum((PSwaption/unlist(swaption_data$Prices)-1)^2)
 
         # Print some information
-        cat("Alpha: ",sprintf("%.4f",parameters[[1]])," // Sigma: ",sprintf("%.4f",parameters[[2]])," // SSE: ", SSE,"\n")
+        cat("Alpha: ",sprintf("%.4f",parameters[1])," // Sigma: ",sprintf("%.4f",parameters[-1])," // SSE: ", sprintf("%.4f",SSE),"\n")
 
         return(SSE)
 }
 
-gurrieri_payer_swaption_closed_form_apply <- function(parameters, swaption_data){
+gurrieri_payer_swaption_closed_form_apply <- function(parameters, swaption_data, method){
 
-        # N
-        N <- length(swaption_data$Prices)
-
-        # Alpha
-        Alpha <- parameters[1]
-
-        # Term structure of Sigma
-        MaxTerm = max(sapply(X = swaption_data$Tenors, FUN = max) + sapply(X = swaption_data$Expiries, FUN = max))
-        Sigma <- dplyr::data_frame(term = MaxTerm, sigma = parameters[2])
-        Sigma <- replicate(N,Sigma, simplify = FALSE)
+        # parameters will be a vector of parameters (specific to method). Here we can extract Alpha and Sigma per method
+        if(method == "method_1"){
+                N <- length(swaption_data$Prices)
+                Alpha <- parameters[1] # Alpha in a vector
+                MaxTerm = max(sapply(X = swaption_data$Tenors, FUN = max) + sapply(X = swaption_data$Expiries, FUN = max))
+                Sigma <- dplyr::data_frame(term = MaxTerm, sigma = parameters[2])
+                Sigma <- replicate(N,Sigma, simplify = FALSE) # Term structure of Sigma in a tibble
+        }
+        if(method == "method_2"){
+                N <- length(swaption_data$Prices)
+                Alpha <- parameters[1]
+                MaxTerm <- max(sapply(X = swaption_data$Tenors, FUN = max) + sapply(X = swaption_data$Expiries, FUN = max))
+                LenTerm <- length(parameters)-1
+                Sigma <- dplyr::data_frame(term = seq.int(from = 1,to = MaxTerm,length.out = LenTerm), sigma = parameters[-1])
+                Sigma <- replicate(N,Sigma, simplify = FALSE) # Term structure of Sigma in a tibble
+        }
 
         # Apply gurrieri closed form over vectors
         PSwaption <- mapply(FUN = gurrieri_payer_swaption_closed_form,
@@ -356,41 +333,31 @@ gurrieri_payer_swaption_closed_form <-
                         )
 
                 # ZCB (P Values)
-                P0.t0 <-
-                        interpolate(X = TenorCurve[,1], Y = TenorCurve[,2], x = SwapStart, method = "cs")
-                P0.ti <-
-                        interpolate(X = TenorCurve[,1], Y = TenorCurve[,2], x = as.numeric(TenorCurve[1, 1]) + t.i * 360,
-                                method = "cs"
-                        )
+                P0.t0 <- interpolate(X = TenorCurve[,1], Y = TenorCurve[,2], x = SwapStart, method = "cs")
+                P0.ti <- interpolate(X = TenorCurve[,1], Y = TenorCurve[,2], x = as.numeric(TenorCurve[1, 1]) + t.i * 360, method = "cs")
 
                 # Coupon vector
                 C <- Strike * yearfrac(
                                 DateBegin = SwapStartDates,
                                 DateEnd = SwapPayDates,
                                 DayCountConv = "act/360")
+
                 C[N] <- C[N] + 1
 
                 # B Value
                 B <- (1 / Alpha) * (1 - exp(-Alpha * T.i))
 
                 # Instant Fwd Rate
-                Inst_Fwd <- instant_forward(Curve = TenorCurve,
-                                t = t.0,
-                                delta = 0.001)
+                Inst_Fwd <- instant_forward(Curve = TenorCurve, t = t.0, delta = 0.001)
 
                 # Variance
-                V_r <- V_r(
-                        s = 0,
-                        t = t.0,
-                        a = Alpha,
-                        S = S
-                )
+                V_r <- V_r(s = 0, t = t.0, a = Alpha, S = S)
 
                 # A Value
                 A <- log(P0.ti / P0.t0) + B * Inst_Fwd - 0.5 * B ^ 2 * V_r
 
                 # Bisection search for r* (Solve instead?)
-                threshold <- 0.0001
+                threshold <- 0.001
                 max_iter <- 30
                 rMin <- -0.9
                 rMax <- 0.9
@@ -456,28 +423,19 @@ V_r <- function(s, t, a, S) {
 
                 if (s_1 > s_n_1) {
                         V_r <-
-                                -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 *
-                                                a * s) - exp(2 * a * t))
+                                -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 * a * s) - exp(2 * a * t))
                 }
-
                 if (s_1 <= s_n_1) {
-                        Start_integral <-
-                                -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 *
-                                                a * s_1) - exp(2 * a * t))
-                        End_integral <-
-                                -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_n, term)]) ^ 2 *
-                                (exp(2 * a * s) - exp(2 * a * s_n_1))
+                        Start_integral <- -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 * a * s_1) - exp(2 * a * t))
+                        End_integral <- -exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_n, term)]) ^ 2 * (exp(2 * a * s) - exp(2 * a * s_n_1))
                         V_r = Start_integral + End_integral
-                        sequence <-
-                                term[(s_1 <= term) & (s_n_1 >= term)]
+                        sequence <- term[(s_1 <= term) & (s_n_1 >= term)]
                         n <- length(sequence)
                         if (length(sequence) > 0) {
                                 for (k in 1:(n - 1)) {
                                         s_k = sequence[k]
                                         s_kp1 = sequence[k + 1]
-                                        V_r = V_r - exp(-2 * a *
-                                                        t) * (1 / (2 * a)) * (sigma[match(s_kp1, term)]) ^ 2 * (exp(2 * a * s_kp1) -
-                                                                        exp(2 * a * s_k))
+                                        V_r = V_r - exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_kp1, term)]) ^ 2 * (exp(2 * a * s_kp1) - exp(2 * a * s_k))
                                 }
                         }
                 }
@@ -488,29 +446,19 @@ V_r <- function(s, t, a, S) {
                 s_n_1 <- term[max(which.max(t <= term) - 1, 1)]
                 s_n <- term[which.max(t <= term)]
                 if (s_1 > s_n_1) {
-                        V_r <-
-                                exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 *
-                                                a * t) - exp(2 * a * s))
+                        V_r <- exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 * a * t) - exp(2 * a * s))
                 }
-
                 if (s_1 <= s_n_1) {
-                        Start_integral <-
-                                exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 *
-                                                a * s_1) - exp(2 * a * s))
-                        End_integral <-
-                                exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_n, term)]) ^ 2 * (exp(2 *
-                                                a * t) - exp(2 * a * s_n_1))
+                        Start_integral <- exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_1, term)]) ^ 2 * (exp(2 * a * s_1) - exp(2 * a * s))
+                        End_integral <- exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_n, term)]) ^ 2 * (exp(2 * a * t) - exp(2 * a * s_n_1))
                         V_r = Start_integral + End_integral
-                        sequence <-
-                                term[(s_1 <= term) & (s_n_1 >= term)]
+                        sequence <- term[(s_1 <= term) & (s_n_1 >= term)]
                         n <- length(sequence)
                         if (length(sequence) > 1) {
                                 for (k in 1:(n - 1)) {
                                         s_k = sequence[k]
                                         s_kp1 = sequence[k + 1]
-                                        V_r = V_r + exp(-2 * a *
-                                                        t) * (1 / (2 * a)) * (sigma[match(s_kp1, term)]) ^ 2 * (exp(2 * a * s_kp1) -
-                                                                        exp(2 * a * s_k))
+                                        V_r = V_r + exp(-2 * a * t) * (1 / (2 * a)) * (sigma[match(s_kp1, term)]) ^ 2 * (exp(2 * a * s_kp1) - exp(2 * a * s_k))
                                 }
                         }
                 }
@@ -532,11 +480,10 @@ V_r <- function(s, t, a, S) {
 ZBP <- function(V, P1, P2, X) {
         d1 <- -(1 / sqrt(V)) * log(P1 / P2 * X) + 0.5 * sqrt(V)
         d2 <- -(1 / sqrt(V)) * log(P1 / P2 * X) - 0.5 * sqrt(V)
-        ZBP <-
-                X * P2 * pnorm(q = d1,
-                        mean = 0,
-                        sd = 1) - P1 * pnorm(q = d2,
+        ZBP <- X * P2 * pnorm(q = d1,
                                 mean = 0,
-                                sd = 1)
+                                sd = 1) - P1 * pnorm(q = d2,
+                                        mean = 0,
+                                        sd = 1)
         return(ZBP)
 }
