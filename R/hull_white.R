@@ -478,8 +478,8 @@ V_r <- function(s, t, a, S) {
 #'
 #' @examples
 ZBP <- function(V, P1, P2, X) {
-        d1 <- -(1 / sqrt(V)) * log(P1 / P2 * X) + 0.5 * sqrt(V)
-        d2 <- -(1 / sqrt(V)) * log(P1 / P2 * X) - 0.5 * sqrt(V)
+        d1 <- -(1 / sqrt(V)) * log(P1 / (P2 * X)) + 0.5 * sqrt(V)
+        d2 <- -(1 / sqrt(V)) * log(P1 / (P2 * X)) - 0.5 * sqrt(V)
         ZBP <- X * P2 * pnorm(q = d1,
                                 mean = 0,
                                 sd = 1) - P1 * pnorm(q = d2,
